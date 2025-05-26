@@ -1,0 +1,77 @@
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+import numpy as np
+
+sns.set_style("whitegrid")
+plt.rcParams.update({
+    'font.size': 12,
+    'axes.labelsize': 14,
+    'axes.titlesize': 16,
+    'legend.fontsize': 12,
+    'xtick.labelsize': 12,
+    'ytick.labelsize': 12,
+    'figure.dpi': 300,
+    'savefig.dpi': 300,
+    'axes.linewidth': 1.2,
+})
+
+df = pd.read_excel('yourfile.xlsx', engine='openpyxl')
+df['numMat'] = df['numMat'].astype(int)
+
+agg_df = df.groupby(['Phen', 'Method'])['pears'].agg(['mean', 'std']).reset_index()
+agg_df.columns = ['Phen', 'Method', 'pears_mean', 'pears_std']
+
+phen_values = sorted(agg_df['Phen'].unique())
+methods = sorted(agg_df['Method'].unique())
+
+colors = sns.color_palette(['#66c2a5', '#fc8d62', '#8da0cb', '#e78ac3', '#a6d854', '#ffd92f'], len(methods))
+method_colors = dict(zip(methods, colors))
+
+n_cols = 3
+n_rows = (len(phen_values) + n_cols - 1) // n_cols
+fig, axes = plt.subplots(n_rows, n_cols, figsize=(18, 5 * n_rows), sharey=True)  # 增加画布高度
+axes = axes.flatten()
+
+for i, phen in enumerate(phen_values):
+    ax = axes[i]
+    phen_data = agg_df[agg_df['Phen'] == phen]
+    
+    phen_data_full = pd.DataFrame({'Method': methods})
+    phen_data_full = phen_data_full.merge(phen_data, on='Method', how='left')
+    
+    x = range(len(methods))
+    heights = phen_data_full['pears_mean']
+    errors = phen_data_full['pears_std']
+    
+    valid_mask = ~heights.isna()
+    ax.bar(
+        np.array(x)[valid_mask],
+        heights[valid_mask],
+        yerr=errors[valid_mask],
+        capsize=5,
+        color=[method_colors[m] for m in phen_data_full['Method'][valid_mask]],
+        edgecolor='black',
+        alpha=0.8
+    )
+    
+    ax.set_title(f'Phenotype {phen}', pad=10) 
+    ax.set_ylabel('Pearson Correlation')
+    ax.set_xticks(x)
+    ax.set_xticklabels(methods, rotation=45, ha='right')
+    ax.grid(True, linestyle='--', alpha=0.7)
+
+handles = [plt.Rectangle((0,0),1,1, color=method_colors[m]) for m in methods]
+fig.legend(handles, methods, title='Method',
+           loc='center right',
+           bbox_to_anchor=(1.15, 0.5), 
+           frameon=True)
+
+for i in range(len(phen_values), len(axes)):
+    fig.delaxes(axes[i])
+
+plt.tight_layout()
+plt.subplots_adjust(right=1) 
+
+plt.savefig('your tittle.png', bbox_inches='tight', dpi=300)
+plt.close()
